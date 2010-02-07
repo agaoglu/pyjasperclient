@@ -1,12 +1,10 @@
 from xml.etree import ElementTree as ET
 from suds.client import Client
-from suds.transport.http import HttpAuthenticated
 import email,re
 
 class JasperClient:
     def __init__(self,url,username,password):
-        t = HttpAuthenticated(username=username, password=password)
-        self.client = Client(url,transport=t)
+        self.client = Client(url,username=username,password=password)
 
     def listReports(self,dir=""):
         """ get a list containing report URIs on JasperServer
@@ -74,7 +72,7 @@ def parseMultipart(res):
 
 if __name__ == "__main__":
     url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
-    j = Jasper(url,'joeuser','joeuser')
+    j = JasperClient(url,'jasperadmin','jasperadmin')
     a = j.runReport('/reports/samples/AllAccounts',"PDF")
     f = file('AllAccounts.pdf','w')
     f.write(a['data'])
