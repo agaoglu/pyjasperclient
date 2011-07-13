@@ -11,7 +11,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from xml.etree import ElementTree as ET
+try:
+    from xml.etree import ElementTree as ET
+except ImportError, e:
+    from elementtree import ElementTree as ET
 from suds.client import Client
 import email,re
 
@@ -28,7 +31,18 @@ class JasperClient:
             wsType="folder", 
             operationName="list")
         res = self.client.service.list(req)
-        return [rd.get('uriString') for rd in ET.fromstring(res).findall('resourceDescriptor') if rd.get('wsType') == 'reportUnit']
+        reports = []
+        for rd in ET.fromstring(res).findall('resourceDescriptor'):
+            if rd.get('wsType') == 'reportUnit':
+                report = {}
+                report['id'] = rd.get('uriString')
+                for infotag in ['label','description']:
+                    try:
+                        report[infotag] = rd.find(infotag).text
+                    except AttributeError, e:
+                        report[infotag] = None
+                reports.append(report)
+        return reports
     
     def runReport(self,uri,output="PDF",params={}):
         """ uri should be report URI on JasperServer
@@ -86,7 +100,7 @@ def parseMultipart(res):
 if __name__ == "__main__":
     url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
     j = JasperClient(url,'jasperadmin','jasperadmin')
-    a = j.runReport('/reports/samples/AllAccounts',"PDF")
+    a = j.runReport('/reports/AllAccounts',"PDF")
     f = file('AllAccounts.pdf','w')
     f.write(a['data'])
     f.close()
