@@ -37,11 +37,11 @@ Create your Jasper object with JasperServer wsdl url and JasperServer credential
 
 There are only two methods that can be used.
 
-### JasperClient.listReports(dir="")
+    JasperClient.listReports(dir="")
 
 Returns a list of strings that are report URIs of the JasperServer. Optional dir param may be used to define the directory to look for. It should start with / and end with directory name. (No / at the end)
 
-### Jasper.runReport(uri,output="PDF",params={})
+    Jasper.runReport(uri,output="PDF",params={})
 
 This will run the report for the URI given in uri and generate a dict containing 'content-type' and 'data'. 'content-type' can be used to send as an HTTP response header. params is a simple dict to pass directly to the running report.
 
