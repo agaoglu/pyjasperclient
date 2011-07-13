@@ -8,4 +8,7 @@ setup(
     version=version,
     packages=['pyjasperclient',],
     install_requires = ['suds','elementtree'],
+    url='https://github.com/agaoglu/pyjasperclient',
+    author='Erdem Agaoglu',
+    author_email='erdem[dot]agaoglu[at]gmail.com'
 )
