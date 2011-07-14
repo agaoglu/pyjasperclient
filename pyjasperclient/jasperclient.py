@@ -18,6 +18,10 @@ except ImportError, e:
 from suds.client import Client
 import email,re
 
+class NotMultipartError(Exception): pass
+class UnknownResponse(Exception): pass
+class ServerError(Exception): pass
+
 class JasperClient:
     def __init__(self,url,username,password):
         self.client = Client(url,username=username,password=password)
@@ -60,8 +64,14 @@ class JasperClient:
             params=params)
         res = self.client.service.runReport(req)
         self.client.set_options(retxml=False) # temporarily of course
-        res = parseMultipart(res)
-        return res
+        try :
+            return parseMultipart(res)
+        except NotMultipartError:
+            soapelement = ET.fromstring(res)
+            jasperres = soapelement.find('{http://schemas.xmlsoap.org/soap/envelope/}Body/{http://axis2.ws.jasperserver.jaspersoft.com}runReportResponse/runReportReturn')
+            if jasperres is None: raise UnknownResponse(res)
+            jasperelement = ET.fromstring(jasperres.text)
+            raise ServerError(", ".join(map(lambda e: '%s: %s'% (e.tag, e.text), list(jasperelement))))
 
 def createRequest(**kwargs):
     r = ET.Element("request")
@@ -90,7 +100,9 @@ def createRequest(**kwargs):
     return ET.tostring(r)
 
 def parseMultipart(res):
-    boundary = re.search(r'----=[^\r\n]*',res).group()
+    srch = re.search(r'----=[^\r\n]*',res)
+    if srch is None: raise NotMultipartError()
+    boundary = srch.group()
     res = " \n"+res
     res = "Content-Type: multipart/alternative; boundary=%s\n%s" % (boundary, res)
     message = email.message_from_string(res)
@@ -100,7 +112,7 @@ def parseMultipart(res):
 if __name__ == "__main__":
     url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
     j = JasperClient(url,'jasperadmin','jasperadmin')
-    a = j.runReport('/reports/AllAccounts',"PDF")
+    a = j.runReport('/reports/samples/AllAccounts',"PDF")
     f = file('AllAccounts.pdf','w')
     f.write(a['data'])
     f.close()
