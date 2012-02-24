@@ -19,7 +19,7 @@ Usage
 For the impatient
 -----------------
 
-    from jasperclient import JasperClient
+    from pyjasperclient import JasperClient
     
     url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
     j = JasperClient(url,'joeuser','joeuser')
