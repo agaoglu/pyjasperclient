@@ -35,6 +35,7 @@ class JasperClient:
             wsType="folder", 
             operationName="list")
         res = self.client.service.list(req)
+        res = res.encode('utf-8')
         reports = []
         for rd in ET.fromstring(res).findall('resourceDescriptor'):
             if rd.get('wsType') == 'reportUnit':
@@ -65,7 +66,9 @@ class JasperClient:
         res = self.client.service.runReport(req)
         self.client.set_options(retxml=False) # temporarily of course
         try :
-            return parseMultipart(res)
+            data = parseMultipart(res)
+            #iprint(data)
+            return data
         except NotMultipartError:
             soapelement = ET.fromstring(res)
             jasperres = soapelement.find('{http://schemas.xmlsoap.org/soap/envelope/}Body/{http://axis2.ws.jasperserver.jaspersoft.com}runReportResponse/runReportReturn')
@@ -100,14 +103,23 @@ def createRequest(**kwargs):
     return ET.tostring(r)
 
 def parseMultipart(res):
+    out = []
     srch = re.search(r'----=[^\r\n]*',res)
     if srch is None: raise NotMultipartError()
     boundary = srch.group()
+    #print(boundary)
     res = " \n"+res
     res = "Content-Type: multipart/alternative; boundary=%s\n%s" % (boundary, res)
     message = email.message_from_string(res)
-    attachment = message.get_payload()[1]
-    return {'content-type': attachment.get_content_type(), 'data': attachment.get_payload()}
+    payloads = message.get_payload()
+    #print(payloads)
+    for i,payload in enumerate(payloads):
+        if i > 0:
+            attachment = payload
+            #print(attachment.items())
+            out.append({'content-type': attachment.get_content_type(), 'data': attachment.get_payload(), 
+            'content-id': attachment.get('Content-Id')})
+    return out
 
 if __name__ == "__main__":
     url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
