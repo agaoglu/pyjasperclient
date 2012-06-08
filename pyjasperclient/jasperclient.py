@@ -25,8 +25,9 @@ class ServerError(Exception): pass
 class JasperClient:
     def __init__(self,url,username,password):
         self.client = Client(url,username=username,password=password)
+        print(self.client)
 
-    def listReports(self,dir=""):
+    def list(self,dir=""):
         """ get a list containing report URIs on JasperServer
         optional dir param shows the directory to list in JasperServer
         """
@@ -48,8 +49,78 @@ class JasperClient:
                         report[infotag] = None
                 reports.append(report)
         return reports
+
+    def get(self, uri):
+        ''' Return a list containing Report's parameters:
+        report:
+            - name
+            - id (uriString)
+            - label
+            - description
+            - controls [list]:
+                - id (inputControl uri)
+                - name
+                - type
+                - label
+                - description
+        '''
+        req = createRequest(
+            uriString=uri, 
+            wsType='reportUnit', 
+            operationName='get')
+        res = self.client.service.get(req)
+        res = res.encode('utf-8')
+        ru = ET.fromstring(res).find('resourceDescriptor')
+        report = {}
+        report['name'] = ru.get('name')
+        report['id'] = ru.get('uriString')
+        for infotag in ['label','description']:
+            try:
+                report[infotag] = ru.find(infotag).text
+            except AttributeError, e:
+                report[infotag] = None
+        
+        controls = []
+        for rd in ru.findall('resourceDescriptor'):
+            if rd.get('wsType') == 'inputControl':
+                control = {}
+                control['id'] = rd.get('uriString')
+                control['name'] = rd.get('name')
+                control['type'] = self.get_control_type(
+                [rp.find('value').text for rp in rd.findall('resourceProperty') if rp.get('name') == 'PROP_INPUTCONTROL_TYPE'][0])
+                for infotag in ['label','description']:
+                    try:
+                        control[infotag] = rd.find(infotag).text
+                    except AttributeError, e:
+                        control[infotag] = None
+                controls.append(control)
+        report['controls'] = controls
+        return report
+            
     
-    def runReport(self,uri,output="PDF",params={}):
+    def get_control_type(self, jasper_type):
+        ''' InputControl types:                         Python type
+        1   -> Boolean                                  -> bool
+        2   -> Single Value                             -> str
+        3   -> Single-select List of Values             -> str
+        8   -> Single-select List of Values (radio)     -> str
+        6   -> Multi-select List of Values              -> list
+        10  -> Multi-select List of Values (check box)  -> list
+        4   -> Single-select Query                      -> str
+        9   -> Single-select Query (radio)              -> str
+        7   -> Multi-select Query                       -> list
+        11  -> Multi-select Query (check box)           -> list
+        '''
+        jasper_type = int(jasper_type)
+        if jasper_type in [1]:
+            return bool
+        if jasper_type in [2, 3, 8, 4, 9]:
+            return str
+        if jasper_type in [6, 10, 7, 11]:
+            return list
+    
+    
+    def run(self, uri, output="PDF", params={}):
         """ uri should be report URI on JasperServer
             output may be PDF, JRPRINT, HTML, XLS, XML, CSV and RTF; default PDF
                 but JRPRINT is useless, so don't use it
@@ -67,7 +138,6 @@ class JasperClient:
         self.client.set_options(retxml=False) # temporarily of course
         try :
             data = parseMultipart(res)
-            #iprint(data)
             return data
         except NotMultipartError:
             soapelement = ET.fromstring(res)
@@ -121,10 +191,10 @@ def parseMultipart(res):
             'content-id': attachment.get('Content-Id')})
     return out
 
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
     j = JasperClient(url,'jasperadmin','jasperadmin')
     a = j.runReport('/reports/samples/AllAccounts',"PDF")
     f = file('AllAccounts.pdf','w')
     f.write(a['data'])
-    f.close()
+    f.close()'''

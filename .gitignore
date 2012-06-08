@@ -1,3 +1,4 @@
 build
 dist
 pyjasperclient.egg-info
+*.pyc
