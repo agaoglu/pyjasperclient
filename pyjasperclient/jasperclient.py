@@ -16,7 +16,9 @@ try:
 except ImportError, e:
     from elementtree import ElementTree as ET
 from suds.client import Client
-import email,re
+from operator import itemgetter
+import email
+import re
 
 class NotMultipartError(Exception): pass
 class UnknownResponse(Exception): pass
@@ -63,15 +65,22 @@ class JasperClient:
                 - type
                 - label
                 - description
+            - parameters [list]:
+                - name
+                - class
+                - default (default value)
         '''
         req = createRequest(
             uriString=uri, 
             wsType='reportUnit', 
             operationName='get')
+        
         res = self.client.service.get(req)
         res = res.encode('utf-8')
         ru = ET.fromstring(res).find('resourceDescriptor')
         report = {}
+        if not ru:
+            return report
         report['name'] = ru.get('name')
         report['id'] = ru.get('uriString')
         for infotag in ['label','description']:
@@ -94,7 +103,10 @@ class JasperClient:
                     except AttributeError, e:
                         control[infotag] = None
                 controls.append(control)
+            elif rd.get('wsType') == 'jrxml':
+                report['jrxmlpath'] = rd.get('uriString')
         report['controls'] = controls
+        report['parameters'] = self.get_parameters(report['jrxmlpath'])
         return report
             
     
@@ -110,6 +122,7 @@ class JasperClient:
         9   -> Single-select Query (radio)              -> str
         7   -> Multi-select Query                       -> list
         11  -> Multi-select Query (check box)           -> list
+        *   -> Other                                    -> NoneType
         '''
         jasper_type = int(jasper_type)
         if jasper_type in [1]:
@@ -118,15 +131,59 @@ class JasperClient:
             return str
         if jasper_type in [6, 10, 7, 11]:
             return list
+        else:
+            return type(None)
+            
+    
+    def get_parameter_type(self, java_type):
+        ''' Parameter type      Pyton type
+        java.lang.Integer       -> int
+        java.lang.String        -> str
+        *                       -> NoneType
+        '''
+        if java_type == 'java.lang.Integer':
+            return int
+        if java_type == 'java.lang.String':
+            return str
+        else:
+            return type(None)
     
     
-    def run(self, uri, output="PDF", params={}):
-        """ uri should be report URI on JasperServer
+    def get_parameters(self, uri):
+        ''' Get report parameters from jr_xml object.
+            return parameters list with type
+        '''
+        req = createRequest(
+            uriString=uri,
+            wsType='jrxml', 
+            operationName='get')
+        self.client.set_options(retxml=True)
+        res = self.client.service.get(req)
+        self.client.set_options(retxml=False)
+        out = parse_multipart(res)
+        jrxml = out[map(itemgetter('content-id'), out).index('<attachment>')]
+        
+        #parse jrxml
+        namespace = '{http://jasperreports.sourceforge.net/jasperreports}'
+        parameters = []
+        ps = ET.fromstring(jrxml['data']).findall(
+        '{0}parameter'.format(namespace))
+        for p in ps:
+            parameters.append({
+                'name': p.get('name'),
+                'class': self.get_parameter_type(p.get('class')),
+                'default': p.find('{0}defaultValueExpression'.format(namespace)).text})
+        return parameters  
+        
+    
+    
+    def run(self, uri, output="PDF", params={}, args={}):
+        ''' uri should be report URI on JasperServer
             output may be PDF, JRPRINT, HTML, XLS, XML, CSV and RTF; default PDF
                 but JRPRINT is useless, so don't use it
             params may contain parameters as a simple dict for passing to the report
             this method will return a dict containing 'content-type' and 'data'.
-        """
+        '''
         self.client.set_options(retxml=True) # suds does not parse MIME encoded so we cancel it
         req = createRequest(
             arguments={"RUN_OUTPUT_FORMAT" : output},
@@ -172,29 +229,17 @@ def createRequest(**kwargs):
             p.text = pval
     return ET.tostring(r)
 
-def parseMultipart(res):
+    
+def parse_multipart(res):
     out = []
     srch = re.search(r'----=[^\r\n]*',res)
     if srch is None: raise NotMultipartError()
     boundary = srch.group()
-    #print(boundary)
     res = " \n"+res
     res = "Content-Type: multipart/alternative; boundary=%s\n%s" % (boundary, res)
     message = email.message_from_string(res)
     payloads = message.get_payload()
-    #print(payloads)
-    for i,payload in enumerate(payloads):
-        if i > 0:
-            attachment = payload
-            #print(attachment.items())
-            out.append({'content-type': attachment.get_content_type(), 'data': attachment.get_payload(), 
-            'content-id': attachment.get('Content-Id')})
+    for attach in payloads:
+        out.append({'content-type': attach.get_content_type(), 'data': attach.get_payload(), 'content-id': attach.get('Content-Id')})
     return out
-
-'''if __name__ == "__main__":
-    url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
-    j = JasperClient(url,'jasperadmin','jasperadmin')
-    a = j.runReport('/reports/samples/AllAccounts',"PDF")
-    f = file('AllAccounts.pdf','w')
-    f.write(a['data'])
-    f.close()'''
+    
