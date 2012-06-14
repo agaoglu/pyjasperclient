@@ -21,6 +21,7 @@ import email
 import re
 
 class NotMultipartError(Exception): pass
+class WrongOutputFormat(Exception): pass
 class UnknownResponse(Exception): pass
 class ServerError(Exception): pass
 
@@ -177,7 +178,7 @@ class JasperClient:
         
     
     
-    def run(self, uri, output="PDF", params={}, args={}):
+    def run(self, uri, output='PDF', params={}, args={}):
         ''' uri should be report URI on JasperServer
             output may be PDF, JRPRINT, HTML, XLS, XML, CSV and RTF; default PDF
                 but JRPRINT is useless, so don't use it
@@ -185,8 +186,13 @@ class JasperClient:
             this method will return a dict containing 'content-type' and 'data'.
         '''
         self.client.set_options(retxml=True) # suds does not parse MIME encoded so we cancel it
+        if output.upper() in ['PDF', 'JRPRINT', 'HTML', 'XLS', 'XML', 'CSV', 'RTF']:
+            args['RUN_OUTPUT_FORMAT'] = output 
+        else:
+            raise WrongOutputFormat()
+        
         req = createRequest(
-            arguments={"RUN_OUTPUT_FORMAT" : output},
+            arguments= args,
             uriString = uri,
             wsType = "reportUnit",
             operationName="runReport",
@@ -194,12 +200,13 @@ class JasperClient:
         res = self.client.service.runReport(req)
         self.client.set_options(retxml=False) # temporarily of course
         try :
-            data = parseMultipart(res)
+            data = parse_multipart(res)
             return data
         except NotMultipartError:
             soapelement = ET.fromstring(res)
             jasperres = soapelement.find('{http://schemas.xmlsoap.org/soap/envelope/}Body/{http://axis2.ws.jasperserver.jaspersoft.com}runReportResponse/runReportReturn')
-            if jasperres is None: raise UnknownResponse(res)
+            if jasperres is None: 
+                raise UnknownResponse(res)
             jasperelement = ET.fromstring(jasperres.text)
             raise ServerError(", ".join(map(lambda e: '%s: %s'% (e.tag, e.text), list(jasperelement))))
 
