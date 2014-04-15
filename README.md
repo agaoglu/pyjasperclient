@@ -61,6 +61,7 @@ report:
     * class
     * default (default value)
 
+
     Jasper.run(uri, output="PDF", params={}, args={})
 
 This will run the report for the URI given in uri and generate a dict containing 'content-type' and 'data'. 'content-type' can be used to send as an HTTP response header. params is a simple dict to pass directly to the running report. Uri should be report URI on JasperServer. Output may be PDF, JRPRINT, HTML, XLS, XML, CSV and RTF; default PDF
