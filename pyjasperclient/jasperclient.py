@@ -16,45 +16,55 @@ try:
 except ImportError, e:
     from elementtree import ElementTree as ET
 from suds.client import Client
+from suds.transport.http import HttpAuthenticated
 from operator import itemgetter
 import email
 import re
+
 
 class NotMultipartError(Exception): pass
 class WrongOutputFormat(Exception): pass
 class UnknownResponse(Exception): pass
 class ServerError(Exception): pass
 
-class JasperClient:
-    def __init__(self,url,username,password):
-        self.client = Client(url,username=username,password=password)
-        print(self.client)
 
-    def list(self,dir=""):
+class JasperClient(object):
+    def __init__(self, url=None, username=None, password=None, timeout=300):
+        self.timeout = timeout
+        if url and username and password:
+            self.client = self.login(url, username=username, password=password, timeout=self.timeout)
+
+    def login(self, url, username, password):
+        #self.transport = HttpAuthenticated(username=username, password=password)
+        #self.client = Client(url, transport=self.transport)
+        self.client = Client(url, username=username,
+                             password=password, timeout=self.timeout)
+
+    def list(self, dir=""):
         """ get a list containing report URIs on JasperServer
         optional dir param shows the directory to list in JasperServer
         """
         req = createRequest(
-            uriString=dir, 
-            wsType="folder", 
+            uriString=dir,
+            wsType="folder",
             operationName="list")
         res = self.client.service.list(req)
         res = res.encode('utf-8')
         reports = []
         for rd in ET.fromstring(res).findall('resourceDescriptor'):
-            if rd.get('wsType') == 'reportUnit':
-                report = {}
-                report['id'] = rd.get('uriString')
-                for infotag in ['label','description']:
-                    try:
-                        report[infotag] = rd.find(infotag).text
-                    except AttributeError, e:
-                        report[infotag] = None
-                reports.append(report)
+            report = {}
+            report['id'] = rd.get('uriString')
+            report['type'] = rd.get('wsType')
+            for infotag in ['label', 'description']:
+                try:
+                    report[infotag] = rd.find(infotag).text
+                except AttributeError:
+                    report[infotag] = None
+            reports.append(report)
         return reports
 
     def get(self, uri):
-        ''' Return a list containing Report's parameters:
+        ''' Return a dict containing Report's parameters:
         report:
             - name
             - id (uriString)
@@ -72,24 +82,24 @@ class JasperClient:
                 - default (default value)
         '''
         req = createRequest(
-            uriString=uri, 
-            wsType='reportUnit', 
+            uriString=uri,
+            wsType='reportUnit',
             operationName='get')
-        
+
         res = self.client.service.get(req)
         res = res.encode('utf-8')
         ru = ET.fromstring(res).find('resourceDescriptor')
         report = {}
-        if not ru:
+        if ru is None:
             return report
         report['name'] = ru.get('name')
         report['id'] = ru.get('uriString')
-        for infotag in ['label','description']:
+        for infotag in ['label', 'description']:
             try:
                 report[infotag] = ru.find(infotag).text
-            except AttributeError, e:
+            except AttributeError:
                 report[infotag] = None
-        
+
         controls = []
         for rd in ru.findall('resourceDescriptor'):
             if rd.get('wsType') == 'inputControl':
@@ -97,11 +107,11 @@ class JasperClient:
                 control['id'] = rd.get('uriString')
                 control['name'] = rd.get('name')
                 control['type'] = self.get_control_type(
-                [rp.find('value').text for rp in rd.findall('resourceProperty') if rp.get('name') == 'PROP_INPUTCONTROL_TYPE'][0])
-                for infotag in ['label','description']:
+                    [rp.find('value').text for rp in rd.findall('resourceProperty') if rp.get('name') == 'PROP_INPUTCONTROL_TYPE'][0])
+                for infotag in ['label', 'description']:
                     try:
                         control[infotag] = rd.find(infotag).text
-                    except AttributeError, e:
+                    except AttributeError:
                         control[infotag] = None
                 controls.append(control)
             elif rd.get('wsType') == 'jrxml':
@@ -109,8 +119,7 @@ class JasperClient:
         report['controls'] = controls
         report['parameters'] = self.get_parameters(report['jrxmlpath'])
         return report
-            
-    
+
     def get_control_type(self, jasper_type):
         ''' InputControl types:                         Python type
         1   -> Boolean                                  -> bool
@@ -134,8 +143,7 @@ class JasperClient:
             return list
         else:
             return type(None)
-            
-    
+
     def get_parameter_type(self, java_type):
         ''' Parameter type      Pyton type
         java.lang.Integer       -> int
@@ -148,36 +156,33 @@ class JasperClient:
             return str
         else:
             return type(None)
-    
-    
+
     def get_parameters(self, uri):
         ''' Get report parameters from jr_xml object.
             return parameters list with type
         '''
         req = createRequest(
             uriString=uri,
-            wsType='jrxml', 
+            wsType='jrxml',
             operationName='get')
         self.client.set_options(retxml=True)
         res = self.client.service.get(req)
         self.client.set_options(retxml=False)
         out = parse_multipart(res)
         jrxml = out[map(itemgetter('content-id'), out).index('<attachment>')]
-        
+
         #parse jrxml
         namespace = '{http://jasperreports.sourceforge.net/jasperreports}'
         parameters = []
         ps = ET.fromstring(jrxml['data']).findall(
-        '{0}parameter'.format(namespace))
+            '{0}parameter'.format(namespace))
         for p in ps:
             parameters.append({
                 'name': p.get('name'),
                 'class': self.get_parameter_type(p.get('class')),
                 'default': p.find('{0}defaultValueExpression'.format(namespace)).text})
-        return parameters  
-        
-    
-    
+        return parameters
+
     def run(self, uri, output='PDF', params={}, args={}):
         ''' uri should be report URI on JasperServer
             output may be PDF, JRPRINT, HTML, XLS, XML, CSV and RTF; default PDF
@@ -185,30 +190,31 @@ class JasperClient:
             params may contain parameters as a simple dict for passing to the report
             this method will return a dict containing 'content-type' and 'data'.
         '''
-        self.client.set_options(retxml=True) # suds does not parse MIME encoded so we cancel it
+        self.client.set_options(retxml=True)  # suds does not parse MIME encoded so we cancel it
         if output.upper() in ['PDF', 'JRPRINT', 'HTML', 'XLS', 'XML', 'CSV', 'RTF']:
-            args['RUN_OUTPUT_FORMAT'] = output 
+            args['RUN_OUTPUT_FORMAT'] = output
         else:
             raise WrongOutputFormat()
-        
+
         req = createRequest(
-            arguments= args,
-            uriString = uri,
-            wsType = "reportUnit",
+            arguments=args,
+            uriString=uri,
+            wsType="reportUnit",
             operationName="runReport",
             params=params)
         res = self.client.service.runReport(req)
-        self.client.set_options(retxml=False) # temporarily of course
-        try :
+        self.client.set_options(retxml=False)  # temporarily of course
+        try:
             data = parse_multipart(res)
             return data
         except NotMultipartError:
             soapelement = ET.fromstring(res)
             jasperres = soapelement.find('{http://schemas.xmlsoap.org/soap/envelope/}Body/{http://axis2.ws.jasperserver.jaspersoft.com}runReportResponse/runReportReturn')
-            if jasperres is None: 
+            if jasperres is None:
                 raise UnknownResponse(res)
+            jasperres.text = jasperres.text.encode('utf-8')
             jasperelement = ET.fromstring(jasperres.text)
-            raise ServerError(", ".join(map(lambda e: '%s: %s'% (e.tag, e.text), list(jasperelement))))
+            raise ServerError(", ".join(map(lambda e: '%s: %s' % (e.tag.encode('utf-8'), e.text.encode('utf-8')), list(jasperelement))))
 
 def createRequest(**kwargs):
     r = ET.Element("request")
@@ -236,7 +242,7 @@ def createRequest(**kwargs):
             p.text = pval
     return ET.tostring(r)
 
-    
+
 def parse_multipart(res):
     out = []
     srch = re.search(r'----=[^\r\n]*',res)
@@ -249,4 +255,4 @@ def parse_multipart(res):
     for attach in payloads:
         out.append({'content-type': attach.get_content_type(), 'data': attach.get_payload(), 'content-id': attach.get('Content-Id')})
     return out
-    
+
