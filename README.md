@@ -22,10 +22,11 @@ For the impatient
     from pyjasperclient import JasperClient
     
     url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
-    j = JasperClient(url,'joeuser','joeuser')
-    ret = j.runReport('/reports/samples/AllAccounts',"PDF")
-    f = file('AllAccounts.pdf','w')
-    f.write(ret['data'])
+    jc = JasperClient()
+    js.login(url, 'jlogin', 'jpass')
+    report = js.run('/Reports/reporting_to_the_explanatory_note/Report30', 'XLS', {'Year': u'2011'}, {'onePagePerSheet': 'true'})
+    report_file = file('report.xls','wb')
+    f.write(report[1]['data'])
     f.close()
 
 
@@ -35,14 +36,33 @@ Create your Jasper object with JasperServer wsdl url and JasperServer credential
 
     j = JasperClient( 'http://localhost:8080/jasperserver/services/repository?wsdl', 'joeuser', 'joeuser')
 
-There are only two methods that can be used.
+There are only three methods that can be used.
 
-    JasperClient.listReports(dir="")
+    JasperClient.list(dir="")
 
 Returns a list of strings that are report URIs of the JasperServer. Optional dir param may be used to define the directory to look for. It should start with / and end with directory name. (No / at the end)
 
-    Jasper.runReport(uri,output="PDF",params={})
+    JasperClient.get(uri)
 
-This will run the report for the URI given in uri and generate a dict containing 'content-type' and 'data'. 'content-type' can be used to send as an HTTP response header. params is a simple dict to pass directly to the running report.
+Returns a dict with report (uri) parametrs:
+    report:
+        - name
+        - id (uriString)
+        - label
+        - description
+        - controls [list]:
+            - id (inputControl uri)
+            - name
+            - type
+            - label
+            - description
+        - parameters [list]:
+            - name
+            - class
+            - default (default value)
+
+    Jasper.run(uri, output="PDF", params={}, args={})
+
+This will run the report for the URI given in uri and generate a dict containing 'content-type' and 'data'. 'content-type' can be used to send as an HTTP response header. params is a simple dict to pass directly to the running report. Uri should be report URI on JasperServer. Output may be PDF, JRPRINT, HTML, XLS, XML, CSV and RTF; default PDF
 
 Check the source for more info
