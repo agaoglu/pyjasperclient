@@ -45,21 +45,21 @@ Returns a list of strings that are report URIs of the JasperServer. Optional dir
     JasperClient.get(uri)
 
 Returns a dict with report (uri) parametrs:
-    report:
+report:
+* name
+* id (uriString)
+* label
+* description
+* controls [list]:
+    * id (inputControl uri)
     * name
-    * id (uriString)
+    * type
     * label
     * description
-    * controls [list]:
-        * id (inputControl uri)
-        * name
-        * type
-        * label
-        * description
-    * parameters [list]:
-        * name
-        * class
-        * default (default value)
+* parameters [list]:
+    * name
+    * class
+    * default (default value)
 
     Jasper.run(uri, output="PDF", params={}, args={})
 
