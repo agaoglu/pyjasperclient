@@ -11,10 +11,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-try:
-    from xml.etree import ElementTree as ET
-except ImportError, e:
-    from elementtree import ElementTree as ET
+from xml.etree import ElementTree as ET
 from suds.client import Client
 from suds.transport.http import HttpAuthenticated
 from operator import itemgetter
