@@ -19,16 +19,17 @@ Usage
 For the impatient
 -----------------
 
-    from pyjasperclient import JasperClient
-    
-    url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
-    jc = JasperClient()
-    js.login(url, 'jlogin', 'jpass')
-    report = js.run('/Reports/reporting_to_the_explanatory_note/Report30', 'XLS', {'Year': u'2011'}, {'onePagePerSheet': 'true'})
-    report_file = file('report.xls','wb')
-    f.write(report[1]['data'])
-    f.close()
+```python
+from pyjasperclient import JasperClient
 
+url = 'http://localhost:8080/jasperserver/services/repository?wsdl'
+jc = JasperClient()
+js.login(url, 'jlogin', 'jpass')
+report = js.run('/Reports/reporting_to_the_explanatory_note/Report30', 'XLS', {'Year': u'2011'}, {'onePagePerSheet': 'true'})
+report_file = file('report.xls','wb')
+f.write(report[1]['data'])
+f.close()
+```
 
 JasperClient object
 -------------------
