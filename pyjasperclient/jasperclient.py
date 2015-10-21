@@ -13,27 +13,38 @@ limitations under the License.
 """
 from xml.etree import ElementTree as ET
 from suds.client import Client
-from suds.transport.http import HttpAuthenticated
+# from suds.transport.http import HttpAuthenticated
 from operator import itemgetter
 import email
 import re
 
 
-class NotMultipartError(Exception): pass
-class WrongOutputFormat(Exception): pass
-class UnknownResponse(Exception): pass
-class ServerError(Exception): pass
+class NotMultipartError(Exception):
+    pass
+
+
+class WrongOutputFormat(Exception):
+    pass
+
+
+class UnknownResponse(Exception):
+    pass
+
+
+class ServerError(Exception):
+    pass
 
 
 class JasperClient(object):
     def __init__(self, url=None, username=None, password=None, timeout=300):
         self.timeout = timeout
         if url and username and password:
-            self.client = self.login(url, username=username, password=password, timeout=self.timeout)
+            self.client = self.login(url, username=username, password=password)
 
     def login(self, url, username, password):
-        #self.transport = HttpAuthenticated(username=username, password=password)
-        #self.client = Client(url, transport=self.transport)
+        # self.transport = HttpAuthenticated(username=username,
+        #                                   password=password)
+        # self.client = Client(url, transport=self.transport)
         self.client = Client(url, username=username,
                              password=password, timeout=self.timeout)
 
@@ -104,7 +115,9 @@ class JasperClient(object):
                 control['id'] = rd.get('uriString')
                 control['name'] = rd.get('name')
                 control['type'] = self.get_control_type(
-                    [rp.find('value').text for rp in rd.findall('resourceProperty') if rp.get('name') == 'PROP_INPUTCONTROL_TYPE'][0])
+                    [rp.find('value').text for rp in rd.findall(
+                        'resourceProperty') if rp.get(
+                            'name') == 'PROP_INPUTCONTROL_TYPE'][0])
                 for infotag in ['label', 'description']:
                     try:
                         control[infotag] = rd.find(infotag).text
@@ -168,7 +181,7 @@ class JasperClient(object):
         out = parse_multipart(res)
         jrxml = out[map(itemgetter('content-id'), out).index('<attachment>')]
 
-        #parse jrxml
+        # parse jrxml
         namespace = '{http://jasperreports.sourceforge.net/jasperreports}'
         parameters = []
         ps = ET.fromstring(jrxml['data']).findall(
@@ -177,18 +190,22 @@ class JasperClient(object):
             parameters.append({
                 'name': p.get('name'),
                 'class': self.get_parameter_type(p.get('class')),
-                'default': p.find('{0}defaultValueExpression'.format(namespace)).text})
+                'default': p.find('{0}defaultValueExpression'.format(
+                    namespace)).text})
         return parameters
 
     def run(self, uri, output='PDF', params={}, args={}):
         ''' uri should be report URI on JasperServer
-            output may be PDF, JRPRINT, HTML, XLS, XML, CSV and RTF; default PDF
+            output may be PDF, JRPRINT, HTML, XLS, XML, CSV, RTF; default PDF
                 but JRPRINT is useless, so don't use it
-            params may contain parameters as a simple dict for passing to the report
-            this method will return a dict containing 'content-type' and 'data'.
+            params may contain parameters as a simple dict for passing to the
+            report.
+            This method will return a dict containing 'content-type' and 'data'
         '''
-        self.client.set_options(retxml=True)  # suds does not parse MIME encoded so we cancel it
-        if output.upper() in ['PDF', 'JRPRINT', 'HTML', 'XLS', 'XML', 'CSV', 'RTF']:
+        # suds does not parse MIME encoded so we cancel it
+        self.client.set_options(retxml=True)
+        if output.upper() in ['PDF', 'JRPRINT', 'HTML', 'XLS', 'XML', 'CSV',
+                              'RTF']:
             args['RUN_OUTPUT_FORMAT'] = output
         else:
             raise WrongOutputFormat()
@@ -206,50 +223,59 @@ class JasperClient(object):
             return data
         except NotMultipartError:
             soapelement = ET.fromstring(res)
-            jasperres = soapelement.find('{http://schemas.xmlsoap.org/soap/envelope/}Body/{http://axis2.ws.jasperserver.jaspersoft.com}runReportResponse/runReportReturn')
+            jasperres = soapelement.find(
+                '{http://schemas.xmlsoap.org/soap/envelope/}Body/{http://axis2.ws.jasperserver.jaspersoft.com}runReportResponse/runReportReturn')  # noqa
             if jasperres is None:
                 raise UnknownResponse(res)
             jasperres.text = jasperres.text.encode('utf-8')
             jasperelement = ET.fromstring(jasperres.text)
-            raise ServerError(", ".join(map(lambda e: '%s: %s' % (e.tag.encode('utf-8'), e.text.encode('utf-8')), list(jasperelement))))
+            raise ServerError(
+                ", ".join(map(lambda e: '%s: %s' % (
+                    e.tag.encode('utf-8'),
+                    e.text.encode('utf-8')),
+                    list(jasperelement))))
+
 
 def createRequest(**kwargs):
     r = ET.Element("request")
-    r.set("operationName",kwargs.get("operationName", "list"))
-    for argName,argValue in kwargs.get("arguments",{}).items():
-        ar = ET.SubElement(r,"argument")
-        ar.set("name",argName)
+    r.set("operationName", kwargs.get("operationName", "list"))
+    for argName, argValue in kwargs.get("arguments", {}).items():
+        ar = ET.SubElement(r, "argument")
+        ar.set("name", argName)
         ar.text = argValue
-    rd = ET.SubElement(r,"resourceDescriptor")
-    rd.set("name","")
-    rd.set("wsType",kwargs.get("wsType","folder"))
-    rd.set("uriString",kwargs.get("uriString",""))
-    l = ET.SubElement(rd,"label")
+    rd = ET.SubElement(r, "resourceDescriptor")
+    rd.set("name", "")
+    rd.set("wsType", kwargs.get("wsType", "folder"))
+    rd.set("uriString", kwargs.get("uriString", ""))
+    l = ET.SubElement(rd, "label")
     l.text = "null"
-    for pname,pval in kwargs.get("params",{}).items():
-        if type(pval) in (list,tuple):
+    for pname, pval in kwargs.get("params", {}).items():
+        if type(pval) in (list, tuple):
             for aval in pval:
-                p = ET.SubElement(rd,"parameter")
-                p.set("name",pname)
-                p.set("isListItem","true")
+                p = ET.SubElement(rd, "parameter")
+                p.set("name", pname)
+                p.set("isListItem", "true")
                 p.text = aval
         else:
-            p = ET.SubElement(rd,"parameter")
-            p.set("name",pname)
+            p = ET.SubElement(rd, "parameter")
+            p.set("name", pname)
             p.text = pval
     return ET.tostring(r)
 
 
 def parse_multipart(res):
     out = []
-    srch = re.search(r'----=[^\r\n]*',res)
-    if srch is None: raise NotMultipartError()
+    srch = re.search(r'----=[^\r\n]*', res)
+    if srch is None:
+        raise NotMultipartError()
     boundary = srch.group()
     res = " \n"+res
-    res = "Content-Type: multipart/alternative; boundary=%s\n%s" % (boundary, res)
+    res = "Content-Type: multipart/alternative; boundary=%s\n%s" % (
+        boundary, res)
     message = email.message_from_string(res)
     payloads = message.get_payload()
     for attach in payloads:
-        out.append({'content-type': attach.get_content_type(), 'data': attach.get_payload(), 'content-id': attach.get('Content-Id')})
+        out.append({'content-type': attach.get_content_type(),
+                    'data': attach.get_payload(),
+                    'content-id': attach.get('Content-Id')})
     return out
-
