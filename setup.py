@@ -8,7 +8,7 @@ setup(
     version=version,
     description='JasperServer SOAP client for Python',
     packages=['pyjasperclient',],
-    install_requires = ['python>=2.5', 'suds'],
+    install_requires = ['suds-py3'],
     url='https://github.com/agaoglu/pyjasperclient',
     license='Apache',
     author='Erdem Agaoglu',

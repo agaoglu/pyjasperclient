@@ -1,1 +1,1 @@
-from jasperclient import JasperClient
+from .jasperclient import JasperClient
