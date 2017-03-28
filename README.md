@@ -6,12 +6,8 @@ A simple python module to run and get generated reports deployed on a JasperServ
 Requirements
 ------------
 
-* re # included in standard distribution
-* email # included in standard distribution
-* xml # included in standard distribution
-* suds (>= 0.3.8 GA) # https://fedorahosted.org/suds/wiki
-
-NOTE: module has been tested on python v2.6.4 only.
+* For 0.2.x python2 and suds (>= 0.3.8 GA) # https://fedorahosted.org/suds/wiki
+* For 0.3.x python3 and suds-py3 # https://github.com/cackharot/suds-py3
 
 Usage
 =====

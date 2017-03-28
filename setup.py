@@ -1,7 +1,7 @@
 from setuptools import setup
 
 name = "pyjasperclient"
-version = "0.2.3"
+version = "0.3.0"
 
 setup(
     name=name,
